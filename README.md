@@ -15,11 +15,12 @@ Our aim is to create an easy to use Lightning implementation of OpenAI's clip tr
 ## TODO ✅
 
 - [x] Get OpenAI's model creation script
-- [ ] Create model inits
-  - [ ] ResNet50
-  - [ ] ResNet50x4
-  - [ ] ResNet101
-  - [ ] ViT-B/32
+- [x] Create model inits
+  - [x] ResNet50
+  - [x] ResNet50x4
+  - [x] ResNet101
+  - [x] ViT-B/32
+  - [x] all models
 - [ ] Create dataset files 
 - [x] Create model wrapper
 - [ ] Create lightning trainer
