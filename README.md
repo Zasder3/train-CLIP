@@ -21,7 +21,8 @@ Our aim is to create an easy to use Lightning implementation of OpenAI's clip tr
   - [ ] ResNet101
   - [ ] ViT-B/32
 - [ ] Create dataset files 
-- [ ] Create lightning trainer/model wrapper
+- [x] Create model wrapper
+- [ ] Create lightning trainer
 - [ ] Performance boosts
   - [ ] Mixed-precision
   - [ ] Gradient checkpointing
