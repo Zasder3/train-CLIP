@@ -1,19 +1,24 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import pytorch_lighting as pl
+import pytorch_lightning as pl
+from .model import CLIP
 
-class Wrapper(pl.LightningModule):
+class CLIPWrapper(pl.LightningModule):
     def __init__(self,
-                 model: nn.Module,
                  model_name: str,
-                 isViT: bool
+                 config: dict
                  ):
+        """A lightning wrapper for a CLIP model as specified in the paper.
+
+        Args:
+            model_name (str): A case sensitive visual model name.
+            config (dict): A dictionary containing the CLIP instantiation parameters.
+        """
         super().__init__()
 
-        self.model = model
         self.model_name = model_name
-        self.isViT = isViT
+        self.model = CLIP(**config)
+        self.isViT = 'ViT' in self.model_name
         self.image_loss = nn.CrossEntropyLoss()
         self.text_loss = nn.CrossEntropyLoss()
     
@@ -59,7 +64,7 @@ class Wrapper(pl.LightningModule):
             weight_decay=0.2
         )
 
-        # TODO Hear back from authors about this
+        # TODO Watch: https://github.com/openai/CLIP/issues/107
         lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
             optimizer,
             T_0=2000
