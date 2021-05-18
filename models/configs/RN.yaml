@@ -2,7 +2,7 @@ RN50:
     embed_dim: 1024
     image_resolution: 224
     vision_layers: [3, 4, 6, 3]
-    vision_width: 2048
+    vision_width: 256
     vision_patch_size: 0
     context_length: 77
     vocab_size: 49408
@@ -15,7 +15,7 @@ RN101:
     embed_dim: 512
     image_resolution: 224
     vision_layers: [3, 4, 23, 3]
-    vision_width: 2048
+    vision_width: 256
     vision_patch_size: 0
     context_length: 77
     vocab_size: 49408
@@ -28,7 +28,7 @@ RN50x4:
     embed_dim: 640
     image_resolution: 288
     vision_layers: [4, 6, 10, 6]
-    vision_width: 2560
+    vision_width: 320
     vision_patch_size: 0
     context_length: 77
     vocab_size: 49408
@@ -41,7 +41,7 @@ RN50x16:
     embed_dim: 768
     image_resolution: 384
     vision_layers: [6, 8, 18, 8]
-    vision_width: 3072
+    vision_width: 384
     vision_patch_size: 0
     context_length: 77
     vocab_size: 49408
@@ -53,7 +53,7 @@ RN50x64:
     embed_dim: 1024
     image_resolution: 448
     vision_layers: [3, 15, 36, 10]
-    vision_width: 4096
+    vision_width: 512
     vision_patch_size: 0
     context_length: 77
     vocab_size: 49408
