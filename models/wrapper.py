@@ -37,8 +37,9 @@ class CLIPWrapper(pl.LightningModule):
     def get_text_logits(self, x, image_embed):
         return self.model.encode_text(x) @ image_embed.t() * self.model.logit_scale.exp()
     
-    # source: https://github.com/openai/CLIP/issues/83
+    # Training loss: https://github.com/openai/CLIP/issues/83
     # Mini-batching thanks to https://github.com/crowsonkb / https://twitter.com/RiversHaveWings
+    # Multi-GPU support: https://github.com/MicPie/clasp/blob/dev_inference/train/train_multigpusim.py#L220:L226
     def training_step(self, train_batch, idx):
         # get optimizers and scheduler
         optimizer = self.optimizers()
@@ -46,6 +47,7 @@ class CLIPWrapper(pl.LightningModule):
 
         image, text = train_batch
         n = math.ceil(len(image) // self.minibatch_size) if self.minibatch_size > 0 else 1
+        batch_offset = self.global_rank * len(image) # offset to align across gpus
         image_mbs = torch.chunk(image, n)
         text_mbs = torch.chunk(text, n)
 
@@ -53,8 +55,12 @@ class CLIPWrapper(pl.LightningModule):
         with torch.no_grad():
             ims = [self.model.encode_image(im) for im in image_mbs]
             txt = [self.model.encode_text(t) for t in text_mbs]
+            # gather from all GPUs
+            ims = self.all_gather(torch.cat(ims))
+            txt = self.all_gather(torch.cat(txt))
+
             image_logits = torch.cat(ims) @ torch.cat(txt).t() * self.model.logit_scale.exp()
-            ground_truth = torch.arange(len(image)).type_as(image_logits).long()
+            ground_truth = torch.arange(len()).type_as(image_logits).long()
             loss = (self.image_loss(image_logits, ground_truth) + self.text_loss(image_logits.t(), ground_truth)).div(2)
             acc_i = (torch.argmax(image_logits) == ground_truth).sum()
             acc_t = (torch.argmax(image_logits.t()) == ground_truth).sum()
@@ -66,7 +72,7 @@ class CLIPWrapper(pl.LightningModule):
         for j, mb in enumerate(image_mbs):
             # images_tmp = ims.copy()
             image_logits = self.get_image_logits(mb, torch.cat(txt))
-            ground_truth = torch.arange(len(mb)).type_as(image_logits).long() + len(mb) * j
+            ground_truth = torch.arange(len(mb)).type_as(image_logits).long() + len(mb) * j + batch_offset
             loss = self.image_loss(image_logits, ground_truth)
             self.manual_backward(loss)
 
@@ -74,11 +80,10 @@ class CLIPWrapper(pl.LightningModule):
         for j, mb in enumerate(text_mbs):
             # images_tmp = ims.copy()
             text_logits = self.get_text_logits(mb, torch.cat(ims))
-            ground_truth = torch.arange(len(mb)).type_as(image_logits).long() + len(mb) * j
+            ground_truth = torch.arange(len(mb)).type_as(image_logits).long() + len(mb) * j + batch_offset
             loss = self.image_loss(text_logits, ground_truth)
             self.manual_backward(loss)
         
-        return self.model.visual.conv1.weight.grad.clone()
         optimizer.step()
         lr_scheduler.step()
         self.model.scale_logits.data.clamp_(-float('inf'), np.log(100))
