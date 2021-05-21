@@ -23,7 +23,7 @@ Our aim is to create an easy to use Lightning implementation of OpenAI's clip tr
   - [x] all models
 - [x] Create model wrapper
 - [x] Create lightning trainer
-- [ ] Create dataset files 
+- [x] Create dataset files 
 - [ ] Performance boosts
   - [x] Mixed-precision
   - [ ] Gradient checkpointing
