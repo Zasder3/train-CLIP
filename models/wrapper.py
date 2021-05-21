@@ -39,11 +39,10 @@ class CLIPWrapper(pl.LightningModule):
     
     # Training loss: https://github.com/openai/CLIP/issues/83
     # Mini-batching thanks to https://github.com/crowsonkb / https://twitter.com/RiversHaveWings
-    # Multi-GPU support: https://github.com/MicPie/clasp/blob/dev_inference/train/train_multigpusim.py#L220:L226
+    # Multi-GPU support: https://github.com/MicPie/clasp
     def training_step(self, train_batch, idx):
         # get optimizers and scheduler
         optimizer = self.optimizers()
-        lr_scheduler = self.lr_schedulers()
 
         image, text = train_batch
         n = math.ceil(len(image) // self.minibatch_size) if self.minibatch_size > 0 else 1
@@ -59,8 +58,12 @@ class CLIPWrapper(pl.LightningModule):
             ims = self.all_gather(torch.cat(ims))
             txt = self.all_gather(torch.cat(txt))
 
+            if not isinstance(ims, list):
+                ims = [ims]
+                txt = [txt]
+
             image_logits = torch.cat(ims) @ torch.cat(txt).t() * self.model.logit_scale.exp()
-            ground_truth = torch.arange(len()).type_as(image_logits).long()
+            ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
             loss = (self.image_loss(image_logits, ground_truth) + self.text_loss(image_logits.t(), ground_truth)).div(2)
             acc_i = (torch.argmax(image_logits) == ground_truth).sum()
             acc_t = (torch.argmax(image_logits.t()) == ground_truth).sum()
@@ -85,8 +88,9 @@ class CLIPWrapper(pl.LightningModule):
             self.manual_backward(loss)
         
         optimizer.step()
+        lr_scheduler = self.lr_schedulers()
         lr_scheduler.step()
-        self.model.scale_logits.data.clamp_(-float('inf'), np.log(100))
+        self.model.logit_scale.data.clamp_(-float('inf'), np.log(100))
     
     def validation_step(self, val_batch, idx):
         image, text = val_batch
@@ -125,4 +129,4 @@ class CLIPWrapper(pl.LightningModule):
             T_0=2000
         )
 
-        return [optimizer], [lr_scheduler]
+        return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
