@@ -45,3 +45,4 @@ Our aim is to create an easy to use Lightning implementation of OpenAI's clip tr
   - [ ] Gradient checkpointing
   - [ ] Half-precision Adam statistics
   - [ ] Half-precision stochastically rounded text encoder weights
+  - [ ] Self-distillation

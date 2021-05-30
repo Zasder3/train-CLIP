@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import pytorch_lightning as pl
 import numpy as np
 import math
@@ -32,14 +33,10 @@ class CLIPWrapper(pl.LightningModule):
         return self.model(image, text)
     
     def get_image_logits(self, x, text_embed):
-        image_embed = self.model.encode_image(x)
-        image_embed = image_embed / image_embed.norm(dim=-1, keepdim=True)
-        return image_embed @ text_embed.t() * self.model.logit_scale.exp()
+        return F.normalize(self.model.encode_image(x), dim=1) @ text_embed.t() * self.model.logit_scale.exp()
 
     def get_text_logits(self, x, image_embed):
-        text_embed = self.model.encode_text(x)
-        text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)
-        return text_embed @ image_embed.t() * self.model.logit_scale.exp()
+        return F.normalize(self.model.encode_text(x), dim=1) @ image_embed.t() * self.model.logit_scale.exp()
     
     # Training loss: https://github.com/openai/CLIP/issues/83
     # Mini-batching thanks to https://github.com/crowsonkb / https://twitter.com/RiversHaveWings
@@ -56,11 +53,8 @@ class CLIPWrapper(pl.LightningModule):
 
         # calculate original statistics
         with torch.no_grad():
-            ims = [self.model.encode_image(im) for im in image_mbs]
-            txt = [self.model.encode_text(t) for t in text_mbs]
-            
-            ims = [im / im.norm(dim=-1, keepdim=True) for im in ims]
-            txt = [t / t.norm(dim=-1, keepdim=True) for t in txt]
+            ims = [F.normalize(self.model.encode_image(im), dim=1) for im in image_mbs]
+            txt = [F.normalize(self.model.encode_text(t), dim=1) for t in text_mbs]
             # gather from all GPUs
             ims = self.all_gather(torch.cat(ims))
             txt = self.all_gather(torch.cat(txt))
