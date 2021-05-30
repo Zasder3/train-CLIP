@@ -32,10 +32,14 @@ class CLIPWrapper(pl.LightningModule):
         return self.model(image, text)
     
     def get_image_logits(self, x, text_embed):
-        return self.model.encode_image(x) @ text_embed.t() * self.model.logit_scale.exp()
+        image_embed = self.model.encode_image(x)
+        image_embed = image_embed / image_embed.norm(dim=-1, keepdim=True)
+        return image_embed @ text_embed.t() * self.model.logit_scale.exp()
 
     def get_text_logits(self, x, image_embed):
-        return self.model.encode_text(x) @ image_embed.t() * self.model.logit_scale.exp()
+        text_embed = self.model.encode_text(x)
+        text_embed = text_embed / text_embed.norm(dim=-1, keepdim=True)
+        return text_embed @ image_embed.t() * self.model.logit_scale.exp()
     
     # Training loss: https://github.com/openai/CLIP/issues/83
     # Mini-batching thanks to https://github.com/crowsonkb / https://twitter.com/RiversHaveWings
@@ -54,6 +58,9 @@ class CLIPWrapper(pl.LightningModule):
         with torch.no_grad():
             ims = [self.model.encode_image(im) for im in image_mbs]
             txt = [self.model.encode_text(t) for t in text_mbs]
+            
+            ims = [im / im.norm(dim=-1, keepdim=True) for im in ims]
+            txt = [t / t.norm(dim=-1, keepdim=True) for t in txt]
             # gather from all GPUs
             ims = self.all_gather(torch.cat(ims))
             txt = self.all_gather(torch.cat(txt))
