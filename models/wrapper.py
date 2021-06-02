@@ -66,9 +66,8 @@ class CLIPWrapper(pl.LightningModule):
             image_logits = torch.cat(ims) @ torch.cat(txt).t() * self.model.logit_scale.exp()
             ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
             loss = (self.image_loss(image_logits, ground_truth) + self.text_loss(image_logits.t(), ground_truth)).div(2)
-            acc_i = (torch.argmax(image_logits) == ground_truth).sum()
-            acc_t = (torch.argmax(image_logits.t()) == ground_truth).sum()
-            self.log_dict({'loss': loss, 'acc': (acc_i + acc_t) / len(image) / 2}, prog_bar=True)
+            acc = (torch.argmax(image_logits, 0) == ground_truth).sum()
+            self.log_dict({'loss': loss, 'acc': acc / len(image)}, prog_bar=True)
         
         optimizer.zero_grad()
 
