@@ -16,7 +16,8 @@ class TextImageDataset(Dataset):
                  folder: str,
                  image_size=224,
                  resize_ratio=0.75,
-                 shuffle=False
+                 shuffle=False,
+                 custom_tokenizer=False
                  ):
         """Create a text image dataset from a directory with congruent text and image names.
 
@@ -25,6 +26,7 @@ class TextImageDataset(Dataset):
             image_size (int, optional): The size of outputted images. Defaults to 224.
             resize_ratio (float, optional): Minimum percentage of image contained by resize. Defaults to 0.75.
             shuffle (bool, optional): Whether or not to have shuffling behavior during sampling. Defaults to False.
+            custom_tokenizer (bool, optional): Whether or not there is a custom tokenizer. Defaults to False.
         """
         super().__init__()
         self.shuffle = shuffle
@@ -54,6 +56,7 @@ class TextImageDataset(Dataset):
             T.ToTensor(),
             T.Normalize((0.48145466, 0.4578275, 0.40821073), (0.26862954, 0.26130258, 0.27577711))
         ])
+        self.custom_tokenizer = custom_tokenizer
 
     def __len__(self):
         return len(self.keys)
@@ -86,7 +89,7 @@ class TextImageDataset(Dataset):
             print(f"Skipping index {ind}")
             return self.skip_sample(ind)
 
-        tokenized_text = clip.tokenize(description)[0]
+        tokenized_text = description if self.custom_tokenizer else clip.tokenize(description)[0]
 
         try:
             image_tensor = self.image_transform(PIL.Image.open(image_file))
@@ -105,7 +108,8 @@ class TextImageDataModule(LightningDataModule):
                  num_workers=0,
                  image_size=224,
                  resize_ratio=0.75,
-                 shuffle=False
+                 shuffle=False,
+                 custom_tokenizer=None
                  ):
         """Create a text image datamodule from directories with congruent text and image names.
 
@@ -116,6 +120,7 @@ class TextImageDataModule(LightningDataModule):
             image_size (int, optional): The size of outputted images. Defaults to 224.
             resize_ratio (float, optional): Minimum percentage of image contained by resize. Defaults to 0.75.
             shuffle (bool, optional): Whether or not to have shuffling behavior during sampling. Defaults to False.
+            custom_tokenizer (transformers.AutoTokenizer, optional): The tokenizer to use on the text. Defaults to None.
         """
         super().__init__()
         self.folder =folder
@@ -124,6 +129,7 @@ class TextImageDataModule(LightningDataModule):
         self.image_size = image_size
         self.resize_ratio = resize_ratio
         self.shuffle = shuffle
+        self.custom_tokenizer = custom_tokenizer
     
     @staticmethod
     def add_argparse_args(parent_parser):
@@ -137,7 +143,13 @@ class TextImageDataModule(LightningDataModule):
         return parser
     
     def setup(self, stage=None):
-        self.dataset = TextImageDataset(self.folder, image_size=self.image_size, resize_ratio=self.resize_ratio, shuffle=self.shuffle)
+        self.dataset = TextImageDataset(self.folder, image_size=self.image_size, resize_ratio=self.resize_ratio, shuffle=self.shuffle, custom_tokenizer=not self.custom_tokenizer is None)
     
     def train_dataloader(self):
         return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers, drop_last=True)
+    
+    def on_before_batch_transfer(self, batch, dataloader_idx):
+        if self.custom_tokenizer is None:
+            return batch
+        else:
+            return batch[0], self.custom_tokenizer(list(batch[1]), padding=True, truncation=True, return_tensors="pt")
