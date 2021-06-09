@@ -4,14 +4,14 @@ A PyTorch Lightning solution to training CLIP from both scratch and fine-tuning.
  
 ## Usage 🚂
 
-### From Scratch 🚆
+### From Scratch 🌵
 This training setup is easily usable right outside the box! Simply provide a training directory or your own dataset and we've got the rest covered. To train a model just specify a name from the paper name and tell us your training folder and batch size. All possible models can be seen in the yaml files in `models/config`
 
 ```
 python train.py --model_name RN50 --folder data_dir --batchsize 512
 ```
 
-### Data-Efficient Finetuning 🌵
+### Data-Efficient Finetuning 🚆
 To perform CLIP training much more efficiently, you might be interested in the class `CustomCLIPWrapper`. This functions as a way to finetune pre-trained image and language models; in turn this leads to a large performance efficiency increase! In order to use this, one simply needs to modify the `train_finetune.py` file to pass an image encoder and Hugging Face text encoder. 
 
 ```python
