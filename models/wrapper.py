@@ -86,7 +86,7 @@ class CLIPWrapper(pl.LightningModule):
         optimizer.step()
         lr_scheduler = self.lr_schedulers()
         lr_scheduler.step()
-        self.model.logit_scale.data.clamp_(-float('inf'), np.log(100))
+        self.model.logit_scale.data.clamp_(np.log(-100), np.log(100))
     
     def validation_step(self, val_batch, idx):
         image, text = val_batch
@@ -225,8 +225,8 @@ class CustomCLIPWrapper(CLIPWrapper):
         optimizer.step()
         lr_scheduler = self.lr_schedulers()
         lr_scheduler.step()
-        self.model.logit_scale.data.clamp_(-float('inf'), np.log(100))
-        self.sink_temp.data.clamp_(-float('inf'), np.log(100))   
+        self.model.logit_scale.data.clamp_(np.log(-100), np.log(100))
+        self.sink_temp.data.clamp_(np.log(-100), np.log(100))   
         self.update_teacher()
     
     def encode_text(self, inputs, teacher=False):

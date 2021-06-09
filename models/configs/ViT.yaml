@@ -3,7 +3,7 @@ ViT-B/32:
     image_resolution: 224
     vision_layers: 12
     vision_width: 768
-    vision_patch_size: 7
+    vision_patch_size: 32
     context_length: 77
     vocab_size: 49408
     transformer_width: 512
@@ -15,7 +15,7 @@ ViT-B/16:
     image_resolution: 224
     vision_layers: 12
     vision_width: 768
-    vision_patch_size: 14
+    vision_patch_size: 16
     context_length: 77
     vocab_size: 49408
     transformer_width: 512
@@ -27,7 +27,7 @@ ViT-L/14:
     image_resolution: 224
     vision_layers: 24
     vision_width: 1024
-    vision_patch_size: 16
+    vision_patch_size: 14
     context_length: 77
     vocab_size: 49408
     transformer_width: 768
@@ -39,7 +39,7 @@ ViT-L/14-336px:
     image_resolution: 336
     vision_layers: 24
     vision_width: 1024
-    vision_patch_size: 24
+    vision_patch_size: 14
     context_length: 77
     vocab_size: 49408
     transformer_width: 768
