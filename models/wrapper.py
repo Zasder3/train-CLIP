@@ -40,8 +40,7 @@ class CLIPWrapper(pl.LightningModule):
         optimizer = self.optimizers()
 
         image, text = train_batch
-        n = math.ceil(len(image) // self.minibatch_size) if self.minibatch_size > 0 else 1
-        batch_offset = self.global_rank * len(image) # offset to align across gpus
+        n = math.ceil(len(image) // self.minibatch_size) 
         image_mbs = torch.chunk(image, n)
         text_mbs = torch.chunk(text, n)
 
@@ -53,7 +52,10 @@ class CLIPWrapper(pl.LightningModule):
             ims = self.all_gather(torch.cat(ims))
             txt = self.all_gather(torch.cat(txt))
 
-            if not isinstance(ims[0], list):
+            if len(ims.shape) == 3:
+                ims = list(ims)
+                txt = list(txt)
+            else:
                 ims = [ims]
                 txt = [txt]
 
@@ -148,8 +150,7 @@ class CustomCLIPWrapper(CLIPWrapper):
         optimizer = self.optimizers()
 
         image, text = train_batch
-        n = math.ceil(len(image) // self.minibatch_size) if self.minibatch_size > 0 else 1
-        batch_offset = self.global_rank * len(image) # offset to align across gpus
+        n = math.ceil(len(image) // self.minibatch_size) 
         image_mbs = torch.chunk(image, n)
         text_mbs_ids = torch.chunk(torch.arange(len(image)), n)
 
@@ -169,7 +170,10 @@ class CustomCLIPWrapper(CLIPWrapper):
             ims = self.all_gather(torch.cat(ims))
             txt = self.all_gather(torch.cat(txt))
 
-            if not isinstance(ims, list):
+            if len(ims.shape) == 3:
+                ims = list(ims)
+                txt = list(txt)
+            else:
                 ims = [ims]
                 txt = [txt]
 
@@ -186,12 +190,15 @@ class CustomCLIPWrapper(CLIPWrapper):
             teacher_ims = self.all_gather(torch.cat(teacher_ims))
             teacher_txt = self.all_gather(torch.cat(teacher_txt))
 
-            if isinstance(teacher_ims, list):
-                teacher_ims = torch.cat(teacher_ims)
-                teacher_txt = torch.cat(teacher_txt)
-            
-            sim_ii, sim_tt, sim_it, sim_ti = self.compute_similarities(teacher_ims, teacher_txt)
+            if len(teacher_ims.shape) == 3:
+                teacher_ims = list(teacher_ims)
+                teacher_txt = list(teacher_txt)
+            else:
+                teacher_ims = [teacher_ims]
+                teacher_txt = [teacher_txt]
 
+            sim_ii, sim_tt, sim_it, sim_ti = self.compute_similarities(torch.cat(teacher_ims), torch.cat(teacher_txt))
+            
             # optimal transport
             img_cost = - (sim_ii + sim_tt + sim_it)
             txt_cost = - (sim_ii + sim_tt + sim_ti)

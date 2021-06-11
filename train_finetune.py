@@ -14,6 +14,9 @@ def main(hparams):
     tokenizer = AutoTokenizer.from_pretrained("johngiorgi/declutr-sci-base")
     txt_encoder = AutoModel.from_pretrained("johngiorgi/declutr-sci-base")
 
+    if hparams.minibatch_size < 1:
+        hparams.minibatch_size = hparams.batch_size
+
     model = CustomCLIPWrapper(img_encoder, txt_encoder, hparams.minibatch_size)
     dm = TextImageDataModule.from_argparse_args(hparams, custom_tokenizer=tokenizer)
     trainer = Trainer.from_argparse_args(hparams, precision=16, max_epochs=32)

@@ -8,6 +8,9 @@ def main(hparams):
     config_dir = 'models/configs/ViT.yaml' if 'ViT' in hparams.model_name else 'models/configs/RN.yaml'
     with open(config_dir) as fin:
         config = yaml.safe_load(fin)[hparams.model_name]
+    
+    if hparams.minibatch_size < 1:
+        hparams.minibatch_size = hparams.batch_size
 
     model = CLIPWrapper(hparams.model_name, config, hparams.minibatch_size)
     del hparams.model_name
