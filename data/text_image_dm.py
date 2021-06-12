@@ -5,6 +5,7 @@ from random import randint, choice
 import PIL
 import argparse
 import clip
+import torch
 
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms as T
@@ -48,8 +49,7 @@ class TextImageDataset(Dataset):
         self.image_files = {k: v for k, v in image_files.items() if k in keys}
         self.resize_ratio = resize_ratio
         self.image_transform = T.Compose([
-            T.Lambda(lambda img: img.convert('RGB')
-            if img.mode != 'RGB' else img),
+            T.Lambda(self.fix_img),
             T.RandomResizedCrop(image_size,
                                 scale=(self.resize_ratio, 1.),
                                 ratio=(1., 1.)),
@@ -60,6 +60,9 @@ class TextImageDataset(Dataset):
 
     def __len__(self):
         return len(self.keys)
+    
+    def fix_img(self, img):
+        return img.convert('RGB') if img.mode != 'RGB' else img
 
     def random_sample(self):
         return self.__getitem__(randint(0, self.__len__() - 1))
@@ -146,10 +149,10 @@ class TextImageDataModule(LightningDataModule):
         self.dataset = TextImageDataset(self.folder, image_size=self.image_size, resize_ratio=self.resize_ratio, shuffle=self.shuffle, custom_tokenizer=not self.custom_tokenizer is None)
     
     def train_dataloader(self):
-        return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers, drop_last=True, collate_fn=self.dl_collate_fn)
+        return DataLoader(self.dataset, batch_size=self.batch_size, shuffle=self.shuffle, num_workers=self.num_workers, drop_last=True , collate_fn=self.dl_collate_fn)
     
     def dl_collate_fn(self, batch):
         if self.custom_tokenizer is None:
-            return batch
+            return torch.stack([row[0] for row in batch]), torch.stack([row[1] for row in batch])
         else:
-            return batch[0], self.custom_tokenizer(list(batch[1]), padding=True, truncation=True, return_tensors="pt")
+            return torch.stack([row[0] for row in batch]), self.custom_tokenizer([row[1] for row in batch], padding=True, truncation=True, return_tensors="pt")
