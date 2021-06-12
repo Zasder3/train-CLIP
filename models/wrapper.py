@@ -66,6 +66,8 @@ class CLIPWrapper(pl.LightningModule):
             acc_t = (torch.argmax(image_logits, 0) == ground_truth).sum()
             self.log_dict({'loss': loss, 'acc': (acc_i + acc_t) / 2 / len(image)}, prog_bar=True)
         
+        if isinstance(optimizer, list):
+            optimizer = optimizer[0]
         optimizer.zero_grad()
 
         # image loss
@@ -207,6 +209,8 @@ class CustomCLIPWrapper(CLIPWrapper):
             loss += (F.kl_div(image_logits_notemp * self.sink_temp, img_target) + F.kl_div(image_logits_notemp.t() * self.sink_temp, txt_target)) / 2 * self.kl_coeff
             self.log_dict({'loss': loss, 'acc': (acc_i + acc_t) / 2 / len(image)}, prog_bar=True)
         
+        if isinstance(optimizer, list):
+            optimizer = optimizer[0]
         optimizer.zero_grad()
 
         # image loss
