@@ -8,6 +8,7 @@ import yaml
 import copy
 from .model import CLIP
 
+
 class CLIPWrapper(pl.LightningModule):
     def __init__(self,
                  model_name: str,
@@ -28,10 +29,10 @@ class CLIPWrapper(pl.LightningModule):
         self.isViT = 'ViT' in self.model_name
 
         self.automatic_optimization = False
-    
+
     def forward(self, image, text):
         return self.model(image, text)
-    
+
     # Training loss: https://github.com/openai/CLIP/issues/83
     # Mini-batching thanks to https://github.com/crowsonkb / https://twitter.com/RiversHaveWings
     # Multi-GPU support: https://github.com/MicPie/clasp
@@ -40,7 +41,7 @@ class CLIPWrapper(pl.LightningModule):
         optimizer = self.optimizers()
 
         image, text = train_batch
-        n = math.ceil(len(image) // self.minibatch_size) 
+        n = math.ceil(len(image) // self.minibatch_size)
         image_mbs = torch.chunk(image, n)
         text_mbs = torch.chunk(text, n)
 
@@ -65,7 +66,7 @@ class CLIPWrapper(pl.LightningModule):
             acc_i = (torch.argmax(image_logits, 1) == ground_truth).sum()
             acc_t = (torch.argmax(image_logits, 0) == ground_truth).sum()
             self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)}, prog_bar=True)
-        
+
         if isinstance(optimizer, list):
             optimizer = optimizer[0]
         optimizer.zero_grad()
@@ -73,7 +74,7 @@ class CLIPWrapper(pl.LightningModule):
         # image loss
         for j, mb in enumerate(image_mbs):
             images_tmp = copy.deepcopy(ims)
-            images_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.model.encode_image(mb), dim=1) 
+            images_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.model.encode_image(mb), dim=1)
             image_logits = torch.cat(images_tmp) @ torch.cat(txt).t() * self.model.logit_scale.exp()
             ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth))/2
@@ -82,23 +83,23 @@ class CLIPWrapper(pl.LightningModule):
         # text loss
         for j, mb in enumerate(text_mbs):
             text_tmp = copy.deepcopy(txt)
-            text_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.model.encode_text(mb), dim=1) 
+            text_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.model.encode_text(mb), dim=1)
             image_logits = torch.cat(ims) @ torch.cat(text_tmp).t() * self.model.logit_scale.exp()
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth))/2
             self.manual_backward(loss)
-        
+
         optimizer.step()
         lr_scheduler = self.lr_schedulers()
         lr_scheduler.step()
         self.model.logit_scale.data.clamp_(-np.log(100), np.log(100))
-    
+
     def validation_step(self, val_batch, idx):
         image, text = val_batch
         image_logits, text_logits = self.forward(image, text)
         ground_truth = torch.arange(len(image_logits))
         loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(text_logits, ground_truth)).div(2)
         self.log('val_loss', loss)
-    
+
     def configure_optimizers(self):
         lr = {
             "RN50": 5e-4,
@@ -133,7 +134,14 @@ class CLIPWrapper(pl.LightningModule):
 
 
 class CustomCLIPWrapper(CLIPWrapper):
-    def __init__(self, image_encoder, text_encoder, minibatch_size, learning_rate=3e-3, kl_coeff=1.0):
+    def __init__(self,
+                 image_encoder,
+                 text_encoder,
+                 minibatch_size,
+                 learning_rate=3e-3,
+                 kl_coeff=1.0,
+                 avg_word_embs=False
+                 ):
         with open('models/configs/RN.yaml') as fin:
             config = yaml.safe_load(fin)['RN50']
         super().__init__('RN50', config, minibatch_size)
@@ -142,6 +150,7 @@ class CustomCLIPWrapper(CLIPWrapper):
         self.model.visual = image_encoder
         self.model.transformer = text_encoder
         self.learning_rate = learning_rate
+        self.avg_word_embs = avg_word_embs
         self.sink_temp = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         # init self-distillation model
@@ -153,7 +162,7 @@ class CustomCLIPWrapper(CLIPWrapper):
         optimizer = self.optimizers()
 
         image, text = train_batch
-        n = math.ceil(len(image) // self.minibatch_size) 
+        n = math.ceil(len(image) // self.minibatch_size)
         image_mbs = torch.chunk(image, n)
         text_mbs_ids = torch.chunk(torch.arange(len(image)), n)
 
@@ -201,7 +210,7 @@ class CustomCLIPWrapper(CLIPWrapper):
                 teacher_txt = [teacher_txt]
 
             sim_ii, sim_tt, sim_it, sim_ti = self.compute_similarities(torch.cat(teacher_ims), torch.cat(teacher_txt))
-            
+
             # optimal transport
             img_cost = - (sim_ii + sim_tt + sim_it)
             txt_cost = - (sim_ii + sim_tt + sim_ti)
@@ -209,7 +218,7 @@ class CustomCLIPWrapper(CLIPWrapper):
             txt_target = self.sinkhorn(txt_cost)
             loss += (F.kl_div(image_logits_notemp * self.sink_temp, img_target) + F.kl_div(image_logits_notemp.t() * self.sink_temp, txt_target)) / 2 * self.kl_coeff
             self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)}, prog_bar=True)
-        
+
         if isinstance(optimizer, list):
             optimizer = optimizer[0]
         optimizer.zero_grad()
@@ -217,8 +226,8 @@ class CustomCLIPWrapper(CLIPWrapper):
         # image loss
         for j, mb in enumerate(image_mbs):
             images_tmp = copy.deepcopy(ims)
-            images_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.model.encode_image(mb), dim=1) 
-            image_logits_notemp = torch.cat(images_tmp) @ torch.cat(txt).t() 
+            images_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.model.encode_image(mb), dim=1)
+            image_logits_notemp = torch.cat(images_tmp) @ torch.cat(txt).t()
             image_logits = image_logits_notemp * self.model.logit_scale.exp()
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth))/2
             loss += (F.kl_div(image_logits_notemp * self.sink_temp, img_target) + F.kl_div(image_logits_notemp.t() * self.sink_temp, txt_target)) / 2 * self.kl_coeff
@@ -227,30 +236,32 @@ class CustomCLIPWrapper(CLIPWrapper):
         # text loss
         for j, mb in enumerate(text_mbs):
             text_tmp = copy.deepcopy(txt)
-            text_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.encode_text(mb), dim=1) 
-            image_logits_notemp = torch.cat(ims) @ torch.cat(text_tmp).t() 
+            text_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.encode_text(mb), dim=1)
+            image_logits_notemp = torch.cat(ims) @ torch.cat(text_tmp).t()
             image_logits = image_logits_notemp * self.model.logit_scale.exp()
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth))/2
             loss += (F.kl_div(image_logits_notemp * self.sink_temp, img_target) + F.kl_div(image_logits_notemp.t() * self.sink_temp, txt_target)) / 2 * self.kl_coeff
             self.manual_backward(loss)
-        
+
         optimizer.step()
         lr_scheduler = self.lr_schedulers()
         lr_scheduler.step()
         self.model.logit_scale.data.clamp_(-np.log(100), np.log(100))
-        self.sink_temp.data.clamp_(-np.log(100), np.log(100))   
+        self.sink_temp.data.clamp_(-np.log(100), np.log(100))
         self.update_teacher()
-    
+
     def encode_text(self, inputs, teacher=False):
-        sequence_output = self.teacher.transformer(**inputs)[0] if teacher else self.model.transformer(**inputs)[0]
+        if self.avg_word_embs:
+            sequence_output = self.teacher.transformer(**inputs)[0] if teacher else self.model.transformer(**inputs)[0]
 
-        embeddings = torch.sum(
-            sequence_output * inputs["attention_mask"].unsqueeze(-1), dim=1
-        ) / torch.clamp(torch.sum(inputs["attention_mask"], dim=1, keepdims=True), min=1e-9)
+            embeddings = torch.sum(
+                sequence_output * inputs["attention_mask"].unsqueeze(-1), dim=1
+            ) / torch.clamp(torch.sum(inputs["attention_mask"], dim=1, keepdims=True), min=1e-9)
 
-        return embeddings
+            return embeddings
+        else:
+            return self.teacher.transformer(**inputs)[1] if teacher else self.model.transformer(**inputs)[1]
 
- 
     def compute_similarities(self, I_emb, T_emb):
         sim_ii, sim_tt = I_emb @ I_emb.t(), T_emb @ T_emb.t()
         sim_it, sim_ti = I_emb @ T_emb.t(), T_emb @ I_emb.t()
@@ -259,15 +270,19 @@ class CustomCLIPWrapper(CLIPWrapper):
     def update_teacher(self):
         for teacher, student in zip(self.teacher.parameters(), self.model.parameters()):
             teacher.data.copy_(self.ema(teacher.data, student.data))
-    
+
     def ema(self, s, t):
         return s * (1 - 0.999) + t * 0.999
-    
+
+    def forward(self, images, text):
+        logits = F.normalize(self.model.encode_image(images), dim=1) @ F.normalize(self.encode_text(text), dim=1).t() * self.model.logit_scale.exp()
+        return logits, logits.t()
+
     # Sourced from: https://github.com/facebookresearch/swav/blob/5e073db0cc69dea22aa75e92bfdd75011e888f28/main_swav.py#L354
     def sinkhorn(self, out):
-        Q = torch.exp(out / 0.05).t() # Q is K-by-B for consistency with notations from our paper
-        B = Q.shape[1] # number of samples to assign
-        K = Q.shape[0] # how many prototypes
+        Q = torch.exp(out / 0.05).t()  # Q is K-by-B for consistency with notations from our paper
+        B = Q.shape[1]  # number of samples to assign
+        K = Q.shape[0]  # how many prototypes
 
         # make the matrix sums to 1
         sum_Q = torch.sum(Q)
@@ -283,9 +298,9 @@ class CustomCLIPWrapper(CLIPWrapper):
             Q /= torch.sum(Q, dim=0, keepdim=True)
             Q /= B
 
-        Q *= B # the colomns must sum to 1 so that Q is an assignment
+        Q *= B  # the colomns must sum to 1 so that Q is an assignment
         return Q.t()
-    
+
     def configure_optimizers(self):
         lr = self.learning_rate
 
