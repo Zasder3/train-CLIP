@@ -21,7 +21,7 @@ img_encoder.fc = torch.nn.Linear(2048, 768)
 tokenizer = AutoTokenizer.from_pretrained("johngiorgi/declutr-sci-base")
 txt_encoder = AutoModel.from_pretrained("johngiorgi/declutr-sci-base")
 
-model = CustomCLIPWrapper(img_encoder, txt_encoder, hparams.minibatch_size)
+model = CustomCLIPWrapper(img_encoder, txt_encoder, hparams.minibatch_size, avg_word_embs=True)
 ```
 
 The command line argument is the same as before minus the `--model_name` flag:

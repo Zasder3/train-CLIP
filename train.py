@@ -4,11 +4,12 @@ from pytorch_lightning import Trainer
 from data.text_image_dm import TextImageDataModule
 from models import CLIPWrapper
 
+
 def main(hparams):
     config_dir = 'models/configs/ViT.yaml' if 'ViT' in hparams.model_name else 'models/configs/RN.yaml'
     with open(config_dir) as fin:
         config = yaml.safe_load(fin)[hparams.model_name]
-    
+
     if hparams.minibatch_size < 1:
         hparams.minibatch_size = hparams.batch_size
 
