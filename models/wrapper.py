@@ -64,7 +64,7 @@ class CLIPWrapper(pl.LightningModule):
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth)).div(2)
             acc_i = (torch.argmax(image_logits, 1) == ground_truth).sum()
             acc_t = (torch.argmax(image_logits, 0) == ground_truth).sum()
-            self.log_dict({'loss': loss, 'acc': (acc_i + acc_t) / 2 / len(image)}, prog_bar=True)
+            self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)}, prog_bar=True)
         
         if isinstance(optimizer, list):
             optimizer = optimizer[0]
@@ -131,6 +131,7 @@ class CLIPWrapper(pl.LightningModule):
 
         return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
 
+
 class CustomCLIPWrapper(CLIPWrapper):
     def __init__(self, image_encoder, text_encoder, minibatch_size, learning_rate=3e-3, kl_coeff=1.0):
         with open('models/configs/RN.yaml') as fin:
@@ -179,7 +180,7 @@ class CustomCLIPWrapper(CLIPWrapper):
                 ims = [ims]
                 txt = [txt]
 
-            image_logits_notemp = torch.cat(ims) @ torch.cat(txt).t() * self.model.logit_scale.exp()
+            image_logits_notemp = torch.cat(ims) @ torch.cat(txt).t()
             image_logits = image_logits_notemp * self.model.logit_scale.exp()
             ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth)).div(2)
@@ -207,7 +208,7 @@ class CustomCLIPWrapper(CLIPWrapper):
             img_target = self.sinkhorn(img_cost)
             txt_target = self.sinkhorn(txt_cost)
             loss += (F.kl_div(image_logits_notemp * self.sink_temp, img_target) + F.kl_div(image_logits_notemp.t() * self.sink_temp, txt_target)) / 2 * self.kl_coeff
-            self.log_dict({'loss': loss, 'acc': (acc_i + acc_t) / 2 / len(image)}, prog_bar=True)
+            self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)}, prog_bar=True)
         
         if isinstance(optimizer, list):
             optimizer = optimizer[0]
