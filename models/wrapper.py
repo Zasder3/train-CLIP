@@ -216,7 +216,7 @@ class CustomCLIPWrapper(CLIPWrapper):
             txt_cost = - (sim_ii + sim_tt + sim_ti)
             img_target = self.sinkhorn(img_cost)
             txt_target = self.sinkhorn(txt_cost)
-            loss += (F.kl_div(image_logits_notemp * self.sink_temp, img_target) + F.kl_div(image_logits_notemp.t() * self.sink_temp, txt_target)) / 2 * self.kl_coeff
+            loss += (F.kl_div(F.log_softmax(image_logits_notemp * self.sink_temp, dim=-1), img_target, reduction='batchmean') + F.kl_div(F.log_softmax(image_logits_notemp.t() * self.sink_temp, dim=-1), txt_target, reduction='batchmean')) / 2 * self.kl_coeff
             self.log_dict({'loss': loss / len(ims), 'acc': (acc_i + acc_t) / 2 / len(image) / len(ims)}, prog_bar=True)
 
         if isinstance(optimizer, list):
@@ -230,7 +230,7 @@ class CustomCLIPWrapper(CLIPWrapper):
             image_logits_notemp = torch.cat(images_tmp) @ torch.cat(txt).t()
             image_logits = image_logits_notemp * self.model.logit_scale.exp()
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth))/2
-            loss += (F.kl_div(image_logits_notemp * self.sink_temp, img_target) + F.kl_div(image_logits_notemp.t() * self.sink_temp, txt_target)) / 2 * self.kl_coeff
+            loss += (F.kl_div(F.log_softmax(image_logits_notemp * self.sink_temp, dim=-1), img_target, reduction='batchmean') + F.kl_div(F.log_softmax(image_logits_notemp.t() * self.sink_temp, dim=-1), txt_target, reduction='batchmean')) / 2 * self.kl_coeff
             self.manual_backward(loss)
 
         # text loss
@@ -240,7 +240,7 @@ class CustomCLIPWrapper(CLIPWrapper):
             image_logits_notemp = torch.cat(ims) @ torch.cat(text_tmp).t()
             image_logits = image_logits_notemp * self.model.logit_scale.exp()
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth))/2
-            loss += (F.kl_div(image_logits_notemp * self.sink_temp, img_target) + F.kl_div(image_logits_notemp.t() * self.sink_temp, txt_target)) / 2 * self.kl_coeff
+            loss += (F.kl_div(F.log_softmax(image_logits_notemp * self.sink_temp, dim=-1), img_target, reduction='batchmean') + F.kl_div(F.log_softmax(image_logits_notemp.t() * self.sink_temp, dim=-1), txt_target, reduction='batchmean')) / 2 * self.kl_coeff
             self.manual_backward(loss)
 
         optimizer.step()
