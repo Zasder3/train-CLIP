@@ -6,6 +6,7 @@ import numpy as np
 import math
 import yaml
 import copy
+from cosine_annealing_warmup import CosineAnnealingWarmupRestarts
 from .model import CLIP
 
 
@@ -29,9 +30,27 @@ class CLIPWrapper(pl.LightningModule):
         self.isViT = 'ViT' in self.model_name
 
         self.automatic_optimization = False
+    
+    # Sourced from https://github.com/PyTorchLightning/pytorch-lightning/issues/5449
+    @property
+    def num_training_steps(self) -> int:
+        """Total training steps inferred from datamodule and devices."""
+        dataset = self.train_dataloader()
+        if self.trainer.max_steps:
+            return self.trainer.max_steps
 
-    def forward(self, image, text):
-        return self.model(image, text)
+        dataset_size = (
+            self.trainer.limit_train_batches
+            if self.trainer.limit_train_batches != 0
+            else len(dataset)
+        )
+
+        num_devices = max(1, self.trainer.num_gpus, self.trainer.num_processes)
+        if self.trainer.tpu_cores:
+            num_devices = max(num_devices, self.trainer.tpu_cores)
+
+        effective_batch_size = dataset.batch_size * self.trainer.accumulate_grad_batches * num_devices
+        return (dataset_size // effective_batch_size) * self.trainer.max_epochs
 
     # Training loss: https://github.com/openai/CLIP/issues/83
     # Mini-batching thanks to https://github.com/crowsonkb / https://twitter.com/RiversHaveWings
@@ -124,10 +143,15 @@ class CLIPWrapper(pl.LightningModule):
             weight_decay=0.2
         )
 
-        # TODO Watch: https://github.com/openai/CLIP/issues/107
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        # Source: https://github.com/openai/CLIP/issues/107
+        # Use pip install 'git+https://github.com/katsura-jp/pytorch-cosine-annealing-with-warmup'
+        lr_scheduler = CosineAnnealingWarmupRestarts(
             optimizer,
-            T_0=2000
+            first_cycle_steps=self.num_training_steps(),
+            cycle_mult=1.0,
+            max_lr=lr,
+            min_lr=0,
+            warmup_steps=2000
         )
 
         return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
@@ -310,10 +334,15 @@ class CustomCLIPWrapper(CLIPWrapper):
             momentum=0.9
         )
 
-        # TODO Watch: https://github.com/openai/CLIP/issues/107
-        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        # Source: https://github.com/openai/CLIP/issues/107
+        # Use pip install 'git+https://github.com/katsura-jp/pytorch-cosine-annealing-with-warmup'
+        lr_scheduler = CosineAnnealingWarmupRestarts(
             optimizer,
-            T_0=2000
+            first_cycle_steps=self.num_training_steps(),
+            cycle_mult=1.0,
+            max_lr=lr,
+            min_lr=0,
+            warmup_steps=2000
         )
 
         return {'optimizer': optimizer, 'lr_scheduler': lr_scheduler}
