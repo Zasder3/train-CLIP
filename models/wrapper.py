@@ -39,11 +39,7 @@ class CLIPWrapper(pl.LightningModule):
         if self.trainer.max_steps:
             return self.trainer.max_steps
 
-        dataset_size = (
-            self.trainer.limit_train_batches
-            if self.trainer.limit_train_batches != 0
-            else len(dataset)
-        )
+        dataset_size = len(dataset)
 
         num_devices = max(1, self.trainer.num_gpus, self.trainer.num_processes)
         if self.trainer.tpu_cores:
