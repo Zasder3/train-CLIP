@@ -5,10 +5,10 @@ A PyTorch Lightning solution to training CLIP from both scratch and fine-tuning.
 ## Usage 🚂
 
 ### From Scratch 🌵
-This training setup is easily usable right outside the box! Simply provide a training directory or your own dataset and we've got the rest covered. To train a model just specify a name from the paper name and tell us your training folder and batch size. All possible models can be seen in the yaml files in `models/config`
+This training setup is easily usable right outside the box! Simply provide a training directory or your own dataset and we've got the rest covered. To train a model just specify a name from the paper name and tell us your training folder. All possible models can be seen in the yaml files in `models/config`
 
 ```
-python train.py --model_name RN50 --folder data_dir --batchsize 512
+python train.py --model_name RN50 --folder data_dir
 ```
 
 ### Data-Efficient Finetuning 🚆
