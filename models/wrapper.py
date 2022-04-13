@@ -76,7 +76,7 @@ class CLIPWrapper(pl.LightningModule):
                 txt = [txt]
 
             image_logits = torch.cat(ims) @ torch.cat(txt).t() * self.model.logit_scale.exp()
-            ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
+            ground_truth = torch.arange(len(image_logits)).long().to(image_logits.device)
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth)).div(2)
             acc_i = (torch.argmax(image_logits, 1) == ground_truth).sum()
             acc_t = (torch.argmax(image_logits, 0) == ground_truth).sum()
@@ -91,7 +91,7 @@ class CLIPWrapper(pl.LightningModule):
             images_tmp = copy.deepcopy(ims)
             images_tmp[self.global_rank][j*self.minibatch_size:(j+1)*self.minibatch_size] = F.normalize(self.model.encode_image(mb), dim=1)
             image_logits = torch.cat(images_tmp) @ torch.cat(txt).t() * self.model.logit_scale.exp()
-            ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
+            ground_truth = torch.arange(len(image_logits)).long().to(image_logits.device)
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth))/2
             self.manual_backward(loss)
 
@@ -211,7 +211,7 @@ class CustomCLIPWrapper(CLIPWrapper):
 
             image_logits_notemp = torch.cat(ims) @ torch.cat(txt).t()
             image_logits = image_logits_notemp * self.model.logit_scale.exp()
-            ground_truth = torch.arange(len(image_logits)).type_as(image_logits).long()
+            ground_truth = torch.arange(len(image_logits)).long().to(image_logits.device)
             loss = (F.cross_entropy(image_logits, ground_truth) + F.cross_entropy(image_logits.t(), ground_truth)).div(2)
             acc_i = (torch.argmax(image_logits, 1) == ground_truth).sum()
             acc_t = (torch.argmax(image_logits, 0) == ground_truth).sum()
