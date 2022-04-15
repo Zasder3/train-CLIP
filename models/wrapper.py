@@ -289,7 +289,7 @@ class CustomCLIPWrapper(CLIPWrapper):
 
     def update_teacher(self):
         for teacher, student in zip(self.teacher.parameters(), self.model.parameters()):
-            teacher.data.copy_(self.ema(teacher.data, student.data))
+            teacher.data.copy_(self.ema(student.data, teacher.data))
 
     def ema(self, s, t):
         return s * (1 - 0.999) + t * 0.999
